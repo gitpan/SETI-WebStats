@@ -1,4 +1,4 @@
-# $Id: WebStats.pm,v 1.4 2002/12/30 15:55:32 vek Exp $
+# $Id: WebStats.pm,v 1.9 2003/10/10 01:57:57 vek Exp $
 
 package SETI::WebStats;
 
@@ -8,36 +8,54 @@ use XML::Simple;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = '1.01';
+$VERSION = '1.03';
 
-use constant URL =>
+use constant USERURL =>
 	"http://setiathome.ssl.berkeley.edu/fcgi-bin/fcgi?cmd=user_xml&email=%s";
+
+use constant GROUPURL =>
+	"http://setiathome.ssl.berkeley.edu/fcgi-bin/fcgi?cmd=team_lookup_xml&name=%s";
 
 sub new {
 	my ($class, $emailAddr) = @_;
-	if (! $emailAddr) {
-		croak("SETI::WebStats: no email address given.");
-		return;
-	}
 	my $self = {};
-	$self->{url}     = sprintf(URL, $emailAddr);
 	$self->{version} = $VERSION;
 	bless $self, $class;
-	if (! $self->_getStats) {
-		croak("SETI::WebStats: No response from server.");
-		return;
+	# still allowing emailAddr in constructor for
+	# backwards compatability...
+	if ($emailAddr) {
+		return $self->fetchUserStats($emailAddr);
 	}
-	if (! $self->_isValidAccount) {
-		croak("SETI::WebStats: $emailAddr is not a valid SETI\@home account.");
-		return;
-	}
-	$self->_parseXML;
 	return $self;
 }
 
-####################
-# UserInfo methods #
-####################
+###############################################################################
+# Public methods 
+###############################################################################
+
+sub fetchUserStats {
+	my ($self, $emailAddr) = @_;
+	if (! $emailAddr) {
+		croak("You must specify an email address");
+		return 0;
+	}
+	my $url = sprintf(USERURL, $emailAddr);
+	$self->_mode('user');
+	return $self->_fetch($url);
+}
+
+sub fetchGroupStats {
+	my ($self, $groupName) = @_;
+	if (! $groupName) {
+		croak("You must specify a group name");
+		return 0;
+	}
+	my $url = sprintf(GROUPURL, $groupName);
+	$self->_mode('group');
+	return $self->_fetch($url);
+}
+
+# userinfo methods
 
 sub userInfo {
 	my $self = shift;
@@ -110,9 +128,7 @@ sub homePage {
 	}
 }
 
-####################
-# RankInfo methods #
-####################
+# rankinfo methods
 
 sub rankInfo {
 	my $self = shift;
@@ -139,73 +155,113 @@ sub rank {
 	return $self->{data}->{rankinfo}->{rank};
 }
 
-#####################
-# GroupInfo methods #
-#####################
+# groupinfo methods from individual user query...
 
 sub groupInfo {
 	my $self = shift;
-	return $self->{data}->{groupinfo}->{a};
+	return $self->{data}->{groupinfo}->{group} ?
+		$self->{data}->{groupinfo}->{group}->{a} :
+		undef;
 }
 
 sub groupName {
 	my $self = shift;
-	if ($self->{data}->{groupinfo}->{group}) {
-		return $self->{data}->{groupinfo}->{group}->{a}->{content};
-	}
+	return $self->{data}->{groupinfo}->{group} ?
+		$self->{data}->{groupinfo}->{group}->{a}->{content} :
+		undef;
 }
 
 sub groupUrl {
 	my $self = shift;
-	if ($self->{data}->{groupinfo}->{group}) {
-		return $self->{data}->{groupinfo}->{group}->{a}->{href};
-	}
+	return $self->{data}->{groupinfo}->{group} ?
+		$self->{data}->{groupinfo}->{group}->{a}->{href} :
+		undef;
 }
 
-sub url {
+# group methods (from group query)
+
+sub groupURL {
 	my $self = shift;
-	return $self->{url};
+	return $self->{groupdata} ?
+		($self->{groupdata}->{url} || undef) :
+		undef;
 }
 
-#################
-# Debug methods #
-#################
-
-sub version {
+sub numGroupResults {
 	my $self = shift;
-	return $self->{version};
+	return $self->{groupdata} ?
+		($self->{groupdata}->{numresults} || undef) :
+		undef;
 }
 
-sub xml {
+sub numGroupMembers {
 	my $self = shift;
-	return $self->{xml};
+	return $self->{groupdata} ?
+		($self->{groupdata}->{nummembers} || undef) :
+		undef;
 }
 
-###################
-# Private methods #
-###################
-
-sub _getStats {
+sub totalGroupCPU {
 	my $self = shift;
+	return $self->{groupdata} ?
+		($self->{groupdata}->{totalcpu} || undef) :
+		undef;
+}
+
+sub nameOfGroup {
+	my $self = shift;
+	return $self->{groupdata} ?
+		($self->{groupdata}->{name} || undef) :
+		undef;
+}
+
+sub groupFounderName {
+	my $self = shift;
+	return $self->{groupdata} ?
+		($self->{groupdata}->{founder}->{name} || undef) :
+		undef;
+}
+
+sub groupFounderURL {
+	my $self = shift;
+	return $self->{groupdata} ?
+		($self->{groupdata}->{founder}->{url} || undef) :
+		undef;
+}
+
+###############################################################################
+# Private methods
+###############################################################################
+
+sub _fetch {
+	my ($self, $URL) = @_;
 	my $ua   = LWP::UserAgent->new;
 	$ua->agent("SETI::WebStats/$VERSION " . $ua->agent);
-	my $req  = HTTP::Request->new('GET', $self->{url});
+	my $req  = HTTP::Request->new('GET', $URL);
 	my $resp = $ua->request($req);
-	return if (! $resp->is_success);
-	my $xml  = $resp->content;
-	$self->{xml} = $resp->content;
-}
-
-sub _isValidAccount {
-	my $self = shift;
-	return $self->{xml} =~ /No user/ ? 0 : 1;
-}
-
-sub _parseXML {
-	my $self = shift;
+	return 0 if (! $resp->is_success);
+	if ($resp->content =~ /No user|No such group/) {
+		croak($resp->content);
+		return 0;
+	}
 	local ($^W) = 0; # silence XML::SAX::Expat
-	$self->{data} = XMLin($self->{xml});
+	if ($self->_mode eq 'user') {
+		$self->{data} = XMLin($resp->content);
+	} else {
+		$self->{groupdata} = XMLin($resp->content);
+	}
 	local ($^W) = 1;
+	return 1;
+}
+
+sub _mode {
+	my ($self, $mode) = @_;
+	if (defined $mode) {
+		$self->{mode} = $mode;
+		return $self;
+	} else {
+		return $self->{mode} || undef;
+	}
 }
 
 1;
@@ -219,39 +275,56 @@ SETI::WebStats - Gather SETI@home statistics from the SETI@home web server
 
   use SETI::WebStats;
 
-  my $emailAddr  = "foo\@bar.org";
-  my $seti       = SETI::WebStats->new($emailAddr);
+  my $seti = SETI::WebStats->new;
 
-  my $ranking    = $seti->rank;
-  my $unitsProcd = $seti->numResults;
-
-  my $userInfo   = $seti->userInfo;
+  # get individual user statistics...
+  if ($seti->fetchUserStats('foo@bar.org')) {
+     print "My rank current rank is " . $seti->rank, "\n";
+     print "I have processed " . $seti->numResults . " units.";
+  }
+  my $cpuTime  = $seti->cpuTime;
+  my $userInfo = $seti->userInfo;
   for (keys(%$userInfo)) {
      print $_, "->", $userInfo->{$_}, "\n";
   }
+
+  # get group statistics...
+  if ($seti->fetchGroupStats('perlmonks')) {
+     print $seti->groupFounderName . " founded the group.\n";
+	 print "We have " . $seti->numGroupMembers . "members.\n";
+	 print "We've processed " . $seti->numGroupResults . " units.\n";
+	 print "For a total group CPU time of " . $seti->totalGroupCPU;
+  }
   
+=head1 ABSTRACT
+
+A simple Perl interface to SETI@home User & Group statistics.  
 
 =head1 DESCRIPTION
 
-A simple Perl interface to the SETI@home web server.  The C<SETI::WebStats> module queries the SETI@home web server to retrieve user statistics.  The data availible from the server is similar to that displayed on the C<Individual User Statistics> web page.  In order to query the server, you will need a valid SETI@home account i.e e-mail address.  At this time only user statistics are availible.  A later version might incorporate country/group statistics also.
+The C<SETI::WebStats> module queries the SETI@home web server to retrieve user and group statistics via XML.  The data availible from the server is the same as that displayed on the C<Individual User Statistics> and C<Group Statistics> web pages.  In order to query the server, you will need a valid SETI@home account (i.e email address) or valid group name.
 
-=head1 METHODS
+=head2 Using SETI::WebStats
 
-=head2 new
+Load the module as normal.
 
-This returns the statistics object.  It takes a mandatory e-mail address as it's only argument:
+  use SETI::WebStats
 
-  my $stats = SETI::WebStats->new($emailAddr);
+Create a WebStats object.
 
-The C<new> method will query the the SETI@home server and parse the retrieved XML via two internal methods C<_getStats> and C<_parseXML>.
+  my $seti = SETI::WebStats->new;
 
-=head2 userInfo
+=head2 Retrieving User Statistics
 
-The C<userInfo> method will return a hash reference of user information:
+  $seti->fetchUserStats('foo@bar.org');
 
-  my $userInfo = $stats->userInfo;
+The C<fetchUserStats> method takes a mandatory email address as it's only argument.  The SETI@home web server will be queried and the XML output parsed.  Returns 1 on success, 0 on failure.
 
-The hash reference looks like this:
+You can then extract the user stats in one go:
+
+  my $userInfo = $seti->userInfo;
+
+Returns a hash reference:
 
   $userInfo = {
 	usertime       => '3.530 years',
@@ -263,13 +336,22 @@ The hash reference looks like this:
 	cputime        => '     1.217 years',
 	name           => 'John Doe'};
 
-=head2 rankInfo
+Alternatively, instead of calling C<userInfo>, you can extract each user statistic individually:
 
-The C<rankInfo> method will return a hash reference of rank information:
+  my $userTime     = $seti->userTime;
+  my $aveCpu       = $seti->aveCpu;
+  my $procd        = $seti->numResults;
+  my $registerDate = $seti->regDate;
+  my $dailyResults = $seti->resultsPerDay;
+  my $lastUnit     = $seti->lastResultTime;
+  my $cpuTime      = $seti->cpuTime;
+  my $accountName  = $seti->name;
 
-  my $rankInfo = $stats->rankInfo;
+You can extract rank stats in one go:
 
-The hash reference looks like this:
+  my $rankInfo = $seti->rankInfo;
+
+Returns a hash reference:
 
   $rankInfo = {
 	num_samerank   => '3',
@@ -277,69 +359,36 @@ The hash reference looks like this:
 	top_rankpct    => '0.516',
 	rank           => '21410'};
 
-=head1 User Methods
+Alternatively, instead of calling C<rankInfo>, you can extract each rank statistic individually:
 
-Each User statistic can also be accessed individually via the following methods:
+  my $usersWithSameRank = $seti->haveSameRank;
+  my $totalUsers        = $seti->totalUsers;
+  my $percentComparedTo = $seti->rankPercent;
+  my $rank              = $seti->rank;
 
-=head2 userTime
+=head2 Retrieving Group Statistics
 
-  my $userTime = $stats->userTime;
+  $seti->fetchGroupStats('some_group_name');
 
-=head2 aveCpu
+The C<fetchGroupStats> method takes a mandatory group name as it's only argument.  The SETI@home web server will be queried and the XML output parsed.  Returns 1 on success, 0 on failure.
 
-  my $aveCpu = $stats->aveCpu;
+You can then extract each group statistic.
 
-=head2 numResults
+  my $groupName    = $seti->groupName;
+  my $groupURL     = $seti->groupURL;
+  my $founder      = $seti->groupFounderName;
+  my $founderURL   = $seti->groupFounderURL;
+  my $groupResults = $seti->numGroupResults;
+  my $groupMembers = $seti->numGroupMembers;
+  my $groupCPU     = $seti->totalGroupCPU;
 
-  my $procd = $stats->numResults;
+=head1 BUGS
 
-=head2 regDate
-
-  my $registerDate = $stats->regDate;
-
-=head2 resultsPerDay
-
-  my $dailyResults = $stats->resultsPerDay;
-
-=head2 lastResultTime
-
-  my $lastUnit = $stats->lastResultTime;
-
-=head2 cpuTime
-
-  my $cpuTime = $stats->cpuTime;
-
-=head2 name
-
-  my $accountName = $stats->name;
-
-=head1 Rank Methods
-
-Each Rank statistic can also be accessed individually via the following methods:
-
-=head2 haveSameRank
-
-  my $usersWithSameRank = $stats->haveSameRank;
-
-=head2 totalUsers
-
-  my $totalUsers = $stats->totalUsers;
-
-=head2 rankPercent
-
-  my $percent = $stats->rankPercent;
-
-=head2 rank
-
-  my $rank = $stats->rank;
-
-=head1 TO DO
-
-Needs a little work.  Remove hardcoding of URL.  Add country/group statistics.  Add meaningful tests.  All will be addressed in upcoming releases.
+None that I'm aware of but be sure to let me know if you find one.
 
 =head1 AUTHOR
 
-Kevin Spencer <vek@{NOSPAM}perlmonk.org>
+Kevin Spencer <vek@perlmonk.org>
 
 =head1 SEE ALSO
 

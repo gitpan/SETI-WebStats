@@ -1,16 +1,11 @@
-$Id: README,v 1.4 2002/12/30 15:55:32 vek Exp $
+$Id: README,v 1.8 2003/10/10 01:58:07 vek Exp $
 
-SETI/WebStats version 1.02
+SETI/WebStats version 1.03
 ==========================
 
-A Perl interface to the SETI@home web server.
+A simple Perl interface to SETI@home User & Group statistics.
 
-SETI::WebStats queries the SETI@home web server and retrieves user
-statistics.  The data availible from the server is similar to that
-displayed on the 'Individual User Statistics' web page.  In order
-to query the server, you will need a valid SETI@home account i.e
-e-mail address.  At this time only user statistics are availible.
-A later version might incorporate country/group statistics also.
+The SETI::WebStats module queries the SETI@home web server to retrieve user and group statistics via XML.  The data availible from the server is the same as that displayed on the <Individual User Statistics and Group Statistics web pages.  In order to query the server, you will need a valid SETI@home account (i.e email address) or valid group name.
 
 INSTALLATION
 
@@ -30,7 +25,7 @@ This module requires these other modules and libraries:
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2002 Kevin Spencer
+Copyright (C) 2002-2003 Kevin Spencer
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 

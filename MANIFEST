@@ -2,5 +2,7 @@ Changes
 Makefile.PL
 MANIFEST
 README
-test.pl
 WebStats.pm
+t/01_load.t
+t/02_userstats.t
+t/03_groupstats.t
