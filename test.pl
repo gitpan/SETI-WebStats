@@ -1,3 +1,5 @@
+# $Id: test.pl,v 1.2 2002/12/29 15:36:54 vek Exp $
+
 # Before `make install' is performed this script should be runnable with
 # `make test'. After `make install' it should work as `perl test.pl'
 

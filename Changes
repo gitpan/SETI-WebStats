@@ -1,4 +1,7 @@
 Revision history for Perl extension SETI::WebStats.
 
+1.01  Sun Dec 29 08:55:13 2002
+	- removed 'warnings' pragma
+	
 1.00  Mon Dec 23 10:56:14 2002
 	- and so it begins, initial release

@@ -1,13 +1,14 @@
+# $Id: WebStats.pm,v 1.3 2002/12/29 15:55:32 vek Exp $
+
 package SETI::WebStats;
 
 use Carp qw(croak);
 use LWP::UserAgent;
 use XML::Simple;
 use strict;
-use warnings;
 use vars qw($VERSION);
 
-$VERSION = '1.00';
+$VERSION = '1.01';
 
 use constant URL =>
 	"http://setiathome.sol.berkeley.edu/fcgi-bin/fcgi?cmd=user_xml&email=%s";
