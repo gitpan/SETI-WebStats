@@ -1,5 +1,8 @@
 Revision history for Perl extension SETI::WebStats.
 
+1.02  Mon Dec 30 09:32:15 2002
+	- fixed a wee URL bug
+
 1.01  Sun Dec 29 08:55:13 2002
 	- removed 'warnings' pragma
 	

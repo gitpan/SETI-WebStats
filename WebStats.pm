@@ -1,4 +1,4 @@
-# $Id: WebStats.pm,v 1.3 2002/12/29 15:55:32 vek Exp $
+# $Id: WebStats.pm,v 1.4 2002/12/30 15:55:32 vek Exp $
 
 package SETI::WebStats;
 
@@ -11,7 +11,7 @@ use vars qw($VERSION);
 $VERSION = '1.01';
 
 use constant URL =>
-	"http://setiathome.sol.berkeley.edu/fcgi-bin/fcgi?cmd=user_xml&email=%s";
+	"http://setiathome.ssl.berkeley.edu/fcgi-bin/fcgi?cmd=user_xml&email=%s";
 
 sub new {
 	my ($class, $emailAddr) = @_;
